@@ -1,33 +1,63 @@
-Write-Host  -ForegroundColor Cyan "Starting SeguraOSD's Custom OSDCloud ..."
+# ACP Demo OSDCloud Add-On
+Write-Host "Starting ACP Demo OS-Deployment"
 Start-Sleep -Seconds 5
 
-#Change Display Resolution for Virtual Machine
-if ((Get-MyComputerModel) -match 'Virtual') {
-    Write-Host  -ForegroundColor Cyan "Setting Display Resolution to 1600x"
-    Set-DisRes 1600
-}
-
-#Make sure I have the latest OSD Content
-Write-Host  -ForegroundColor Cyan "Updating the awesome OSD PowerShell Module"
-Install-Module OSD -Force
-
-Write-Host  -ForegroundColor Cyan "Importing the sweet OSD PowerShell Module"
+#Uninstall-Module OSD -Force -AllVersions
+#Install-Module OSD -Force
 Import-Module OSD -Force
 
-#TODO: Spend the time to write a function to do this and put it here
-Write-Host  -ForegroundColor Cyan "Ejecting ISO"
-Write-Warning "That didn't work because I haven't coded it yet!"
-#Start-Sleep -Seconds 5
+$Global:StartOSDCloudGUI = @{OSVersion = 'Windows 10'}
+Start-OSDCloud -OSBuild 21H2 -OSLanguage de-de -OSEdition Enterprise -ZTI
 
-#Start OSDCloud ZTI the RIGHT way
-Write-Host  -ForegroundColor Cyan "Start OSDCloud with MY Parameters"
-Start-OSDCloud -OSLanguage en-us -OSBuild 20H2 -OSEdition Enterprise -ZTI
 
-#Anything I want  can go right here and I can change it at any time since it is in the Cloud!!!!!
-Write-Host  -ForegroundColor Cyan "Starting OSDCloud PostAction ..."
-Write-Warning "I'm not sure of what to put here yet"
+# Create Install Folder
+New-Item "C:\Install" -ItemType Directory -ErrorAction SilentlyContinue
 
-#Restart from WinPE
-Write-Host  -ForegroundColor Cyan "Restarting in 20 seconds!"
-Start-Sleep -Seconds 20
+# Create Install-CMD-File
+$('@echo off') | Out-File -FilePath "C:\Install\01.Install.cmd" -Encoding utf8 -Force
+
+
+# Download AnyDesk
+    $OutFile = "C:\Install\slack.exe"
+    $Source = "https://downloads.slack-edge.com/releases/windows/4.23.0/prod/x64/SlackSetup.exe"
+    & curl.exe --location --output $OutFile --url $Source
+# Add Install to CMD
+    $('echo Installing Slack') | Out-File -FilePath "C:\Install\01.Install.cmd" -Encoding utf8 -Force -Append
+    $('"%~dp0Slack.exe" --install "%ProgramFiles(x64)%\Slack" --start-with-win --silent --create-shortcuts --update-disabled') | Out-File -FilePath "C:\Install\01.Install.cmd" -Encoding utf8 -Force -Append
+    $('echo AnyDesk Setup Errorocode: %ERRORLEVEL%') | Out-File -FilePath "C:\Install\01.Install.cmd" -Encoding utf8 -Force -Append
+    $('TIMEOUT /T 5') | Out-File -FilePath "C:\Install\01.Install.cmd" -Encoding utf8 -Force -Append
+
+        
+# finish Install-CMD-File
+    $('echo.') | Out-File -FilePath "C:\Install\01.Install.cmd" -Encoding utf8 -Force -Append
+
+
+# Add Command to Unattend.xml
+    $Panther = 'C:\Windows\Panther'
+    $UnattendPath = "$Panther\Invoke-OSDSpecialize.xml"
+    [XML]$Unattend = Get-Content -Path $UnattendPath
+
+    $SpecializePass = $Unattend.unattend.settings | Where pass -eq "specialize"
+    $WinDeployComponent = $SpecializePass.component | where name -eq "Microsoft-Windows-Deployment"
+
+    $ExisitingRun = $WinDeployComponent.RunSynchronous.RunSynchronousCommand
+    If ( $ExisitingRun.GetType().Name -eq "XmlElement" ) {
+        $NewEntry = $ExisitingRun.CloneNode($true)
+        $NewEntry.Order = [string]$([int]$($ExisitingRun | Sort Order -Descending).Order + 1).ToString()
+    }
+    ElseIf ( $ExisitingRun.GetType().BaseType.Name -eq "Array" ) {
+        $NewEntry = $ExisitingRun[0].CloneNode($true)
+        $NewEntry.Order = [string]$([int]$($ExisitingRun | Sort Order -Descending)[0].Order + 1).ToString()
+    }
+    $NewEntry.Description = "Run Custom Installs $($NewEntry.Order)"
+    $NewEntry.Path = "cmd /c c:\Install\01.install.cmd"
+    $WinDeployComponent.RunSynchronous.AppendChild($NewEntry)
+
+    $NewUnattend = "C:\temp\OSDCloud\Customizations\unattend_1.xml"
+    $Unattend.Save($UnattendPath)
+
+# Customization finished
+
+Write-Host "Finished OS Installation - Rebooting in 60 Seconds"
+Start-Sleep -Seconds 60
 wpeutil reboot
