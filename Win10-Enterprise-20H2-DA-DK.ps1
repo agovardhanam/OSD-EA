@@ -7,7 +7,7 @@ Start-Sleep -Seconds 5
 Import-Module OSD -Force
 
 $Global:StartOSDCloudGUI = @{OSVersion = 'Windows 10'}
-Start-OSDCloud -OSBuild 21H2 -OSLanguage de-de -OSEdition Enterprise -ZTI
+Start-OSDCloud -OSBuild 21H2 -OSLanguage en-us -OSEdition Enterprise -ZTI
 
 
 # Create Install Folder
