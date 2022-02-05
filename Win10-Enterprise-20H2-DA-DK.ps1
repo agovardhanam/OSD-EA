@@ -1,5 +1,5 @@
-# ACP Demo OSDCloud Add-On
-Write-Host "Starting ACP Demo OS-Deployment"
+# EA OSD CLoud Demo Add-On
+Write-Host "Starting EA OS-Deployment"
 Start-Sleep -Seconds 5
 
 #Uninstall-Module OSD -Force -AllVersions
